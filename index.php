@@ -12,235 +12,210 @@ if(isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true){
 require_once "config/database.php";
 
 // Define variables and initialize with empty values
-$username = $password = "";
-$username_err = $password_err = $login_err = "";
+$name = $email = $password = $password_confirmation = "";
+$name_err = $email_err = $password_err = $password_confirmation_err = $login_err = "";
 
 // Processing form data when form is submitted
 if($_SERVER["REQUEST_METHOD"] == "POST"){
-    // Check if it's a login or register request
     if(isset($_POST["action"]) && $_POST["action"] == "login"){
         // Login processing
-        // Validate username
-        if(empty(trim($_POST["username"]))){
-            $username_err = "Please enter username.";
-        } else{
-            $username = trim($_POST["username"]);
+        if(empty(trim($_POST["email"]))) {
+            $email_err = "Veuillez entrer votre email.";
+        } else {
+            $email = trim($_POST["email"]);
         }
-        
-        // Validate password
-        if(empty(trim($_POST["password"]))){
-            $password_err = "Please enter your password.";
-        } else{
+        if(empty(trim($_POST["password"]))) {
+            $password_err = "Veuillez entrer votre mot de passe.";
+        } else {
             $password = trim($_POST["password"]);
         }
-        
-        // Validate credentials
-        if(empty($username_err) && empty($password_err)){
-            // Prepare a select statement
-            $sql = "SELECT id, username, password FROM users WHERE username = ?";
-            
+        if(empty($email_err) && empty($password_err)) {
+            $sql = "SELECT id, name, email, password FROM users WHERE email = ?";
             if($stmt = mysqli_prepare($conn, $sql)){
-                // Bind variables to the prepared statement as parameters
-                mysqli_stmt_bind_param($stmt, "s", $param_username);
-                
-                // Set parameters
-                $param_username = $username;
-                
-                // Attempt to execute the prepared statement
+                mysqli_stmt_bind_param($stmt, "s", $param_email);
+                $param_email = $email;
                 if(mysqli_stmt_execute($stmt)){
-                    // Store result
                     mysqli_stmt_store_result($stmt);
-                    
-                    // Check if username exists, if yes then verify password
-                    if(mysqli_stmt_num_rows($stmt) == 1){                    
-                        // Bind result variables
-                        mysqli_stmt_bind_result($stmt, $id, $username, $hashed_password);
+                    if(mysqli_stmt_num_rows($stmt) == 1){
+                        mysqli_stmt_bind_result($stmt, $id, $name, $email, $hashed_password);
                         if(mysqli_stmt_fetch($stmt)){
                             if(password_verify($password, $hashed_password)){
-                                // Password is correct, so start a new session
                                 session_start();
-                                
-                                // Store data in session variables
                                 $_SESSION["loggedin"] = true;
                                 $_SESSION["id"] = $id;
-                                $_SESSION["username"] = $username;                            
-                                
-                                // Redirect user to tasks page
+                                $_SESSION["name"] = $name;
+                                $_SESSION["email"] = $email;
                                 header("location: tasks.php");
-                            } else{
-                                // Password is not valid, display a generic error message
-                                $login_err = "Invalid username or password.";
+                                exit;
+                            } else {
+                                $login_err = "Email ou mot de passe invalide.";
                             }
                         }
-                    } else{
-                        // Username doesn't exist, display a generic error message
-                        $login_err = "Invalid username or password.";
+                    } else {
+                        $login_err = "Email ou mot de passe invalide.";
                     }
-                } else{
-                    echo "Oops! Something went wrong. Please try again later.";
                 }
-
-                // Close statement
                 mysqli_stmt_close($stmt);
             }
         }
     } elseif(isset($_POST["action"]) && $_POST["action"] == "register") {
         // Register processing
-        // Validate username
-        if(empty(trim($_POST["username"]))){
-            $username_err = "Please enter a username.";
-        } else{
-            // Prepare a select statement
-            $sql = "SELECT id FROM users WHERE username = ?";
-            
+        if(empty(trim($_POST["name"]))) {
+            $name_err = "Veuillez entrer un nom d'utilisateur.";
+        } else {
+            $name = trim($_POST["name"]);
+        }
+        if(empty(trim($_POST["email"]))) {
+            $email_err = "Veuillez entrer un email.";
+        } elseif(!filter_var(trim($_POST["email"]), FILTER_VALIDATE_EMAIL)) {
+            $email_err = "Format d'email invalide.";
+        } else {
+            $email = trim($_POST["email"]);
+            $sql = "SELECT id FROM users WHERE email = ?";
             if($stmt = mysqli_prepare($conn, $sql)){
-                // Bind variables to the prepared statement as parameters
-                mysqli_stmt_bind_param($stmt, "s", $param_username);
-                
-                // Set parameters
-                $param_username = trim($_POST["username"]);
-                
-                // Attempt to execute the prepared statement
+                mysqli_stmt_bind_param($stmt, "s", $param_email);
+                $param_email = $email;
                 if(mysqli_stmt_execute($stmt)){
-                    // Store result
                     mysqli_stmt_store_result($stmt);
-                    
                     if(mysqli_stmt_num_rows($stmt) == 1){
-                        $username_err = "This username is already taken.";
-                    } else{
-                        $username = trim($_POST["username"]);
+                        $email_err = "Cet email est déjà utilisé.";
                     }
-                } else{
-                    echo "Oops! Something went wrong. Please try again later.";
                 }
-
-                // Close statement
                 mysqli_stmt_close($stmt);
             }
         }
-        
-        // Validate password
-        if(empty(trim($_POST["password"]))){
-            $password_err = "Please enter a password.";
-        } elseif(strlen(trim($_POST["password"])) < 6){
-            $password_err = "Password must have at least 6 characters.";
-        } else{
+        if(empty(trim($_POST["password"]))) {
+            $password_err = "Veuillez entrer un mot de passe.";
+        } elseif(strlen(trim($_POST["password"])) < 6) {
+            $password_err = "Le mot de passe doit contenir au moins 6 caractères.";
+        } else {
             $password = trim($_POST["password"]);
         }
-        
-        // Check input errors before inserting in database
-        if(empty($username_err) && empty($password_err)){
-            // Prepare an insert statement
-            $sql = "INSERT INTO users (username, password) VALUES (?, ?)";
-            
+        if(empty(trim($_POST["password_confirmation"]))) {
+            $password_confirmation_err = "Veuillez confirmer le mot de passe.";
+        } elseif(trim($_POST["password"]) !== trim($_POST["password_confirmation"])) {
+            $password_confirmation_err = "Les mots de passe ne correspondent pas.";
+        } else {
+            $password_confirmation = trim($_POST["password_confirmation"]);
+        }
+        if(empty($name_err) && empty($email_err) && empty($password_err) && empty($password_confirmation_err)) {
+            $sql = "INSERT INTO users (name, email, password) VALUES (?, ?, ?)";
             if($stmt = mysqli_prepare($conn, $sql)){
-                // Bind variables to the prepared statement as parameters
-                mysqli_stmt_bind_param($stmt, "ss", $param_username, $param_password);
-                
-                // Set parameters
-                $param_username = $username;
-                $param_password = password_hash($password, PASSWORD_DEFAULT); // Creates a password hash
-                
-                // Attempt to execute the prepared statement
+                mysqli_stmt_bind_param($stmt, "sss", $param_name, $param_email, $param_password);
+                $param_name = $name;
+                $param_email = $email;
+                $param_password = password_hash($password, PASSWORD_DEFAULT);
                 if(mysqli_stmt_execute($stmt)){
-                    // Redirect to login page
-                    $login_err = "Registration successful! Please login.";
-                } else{
-                    echo "Oops! Something went wrong. Please try again later.";
+                    $login_err = "Inscription réussie ! Connectez-vous.";
                 }
-
-                // Close statement
                 mysqli_stmt_close($stmt);
             }
         }
     }
-    
-    // Close connection
     mysqli_close($conn);
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>To-Do List App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="css/style.css">
+    <title>connection Page</title>
 </head>
 <body>
     <div class="container">
-        <h1>To-Do List App</h1>
-        <div class="auth-container">
-            <div class="tabs">
-                <button class="tab-btn active" onclick="showTab('login')">Login</button>
-                <button class="tab-btn" onclick="showTab('register')">Register</button>
+        <div class="form-box login">
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="login">
+                <h1>Login</h1>
+                <div class="input-box">
+                    <input type="email" name="email" placeholder="Email" value="<?php echo htmlspecialchars($email); ?>" required>
+                    <i class='bx bxs-user'></i>
+                </div>
+                <div class="input-box">
+                    <input type="password" name="password" placeholder="Mot de passe" required>
+                    <i class='bx bxs-lock-alt' ></i>
+                </div>
+                <div class="forget-link">
+                    <a href="#">Mot de passe oublié ?</a>
+                </div>
+                <button type="submit" class="btn">Login</button>
+                <?php if(!empty($login_err) || !empty($email_err) || !empty($password_err)) { ?>
+                    <div style="color:red;">
+                        <ul>
+                            <?php if(!empty($login_err)) echo '<li>' . $login_err . '</li>'; ?>
+                            <?php if(!empty($email_err)) echo '<li>' . $email_err . '</li>'; ?>
+                            <?php if(!empty($password_err)) echo '<li>' . $password_err . '</li>'; ?>
+                        </ul>
+                    </div>
+                <?php } ?>
+                <p>Ou connectez-vous avec</p>
+                <div class="social-icons">
+                    <a href="#"><i class='bx bxl-google' ></i></a>
+                    <a href="#"><i class='bx bxl-facebook-circle' ></i></a>
+                    <a href="#"><i class='bx bxl-github' ></i></a>
+                    <a href="#"><i class='bx bxl-linkedin' ></i></a>
+                </div>
+            </form>
+        </div>
+        <div class="form-box register">
+            <form method="POST" action="">
+                <input type="hidden" name="action" value="register">
+                <h1>Inscription</h1>
+                <div class="input-box">
+                    <input type="text" name="name" placeholder="Nom d'utilisateur" value="<?php echo htmlspecialchars($name); ?>" required>
+                    <i class='bx bxs-user'></i>
+                </div>
+                <div class="input-box">
+                    <input type="email" name="email" placeholder="Email" value="<?php echo htmlspecialchars($email); ?>" required>
+                    <i class='bx bxs-envelope'></i>
+                </div>
+                <div class="input-box">
+                    <input type="password" name="password" placeholder="Mot de passe" required>
+                    <i class='bx bxs-lock-alt' ></i>
+                </div>
+                <div class="input-box">
+                    <input type="password" name="password_confirmation" placeholder="Confirmer le mot de passe" required>
+                    <i class='bx bxs-lock-alt' ></i>
+                </div>
+                <button type="submit" class="btn">Register</button>
+                <?php if(!empty($name_err) || !empty($email_err) || !empty($password_err) || !empty($password_confirmation_err)) { ?>
+                    <div style="color:red;">
+                        <ul>
+                            <?php if(!empty($name_err)) echo '<li>' . $name_err . '</li>'; ?>
+                            <?php if(!empty($email_err)) echo '<li>' . $email_err . '</li>'; ?>
+                            <?php if(!empty($password_err)) echo '<li>' . $password_err . '</li>'; ?>
+                            <?php if(!empty($password_confirmation_err)) echo '<li>' . $password_confirmation_err . '</li>'; ?>
+                        </ul>
+                    </div>
+                <?php } ?>
+                <p>Ou inscrivez-vous avec</p>
+                <div class="social-icons">
+                    <a href="#"><i class='bx bxl-google' ></i></a>
+                    <a href="#"><i class='bx bxl-facebook-circle' ></i></a>
+                    <a href="#"><i class='bx bxl-github' ></i></a>
+                    <a href="#"><i class='bx bxl-linkedin' ></i></a>
+                </div>
+            </form>
+        </div>
+        <div class="toggle-box">
+            <div class="toggle-panel toggle-left">
+                <h1>Hello, Welcome!</h1>
+                <p>Don't have an account?</p>
+                <button class="btn register-btn">Register</button>
             </div>
-            
-            <?php 
-            if(!empty($login_err)){
-                echo '<div class="alert alert-danger">' . $login_err . '</div>';
-            }        
-            ?>
-
-            <div id="login" class="tab-content active">
-                <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-                    <input type="hidden" name="action" value="login">
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" name="username" class="form-control <?php echo (!empty($username_err)) ? 'is-invalid' : ''; ?>" value="<?php echo $username; ?>">
-                        <span class="invalid-feedback"><?php echo $username_err; ?></span>
-                    </div>    
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" name="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>">
-                        <span class="invalid-feedback"><?php echo $password_err; ?></span>
-                    </div>
-                    <div class="form-group">
-                        <input type="submit" class="btn btn-primary" value="Login">
-                    </div>
-                </form>
-            </div>
-
-            <div id="register" class="tab-content">
-                <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-                    <input type="hidden" name="action" value="register">
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" name="username" class="form-control <?php echo (!empty($username_err)) ? 'is-invalid' : ''; ?>" value="<?php echo $username; ?>">
-                        <span class="invalid-feedback"><?php echo $username_err; ?></span>
-                    </div>    
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" name="password" class="form-control <?php echo (!empty($password_err)) ? 'is-invalid' : ''; ?>">
-                        <span class="invalid-feedback"><?php echo $password_err; ?></span>
-                    </div>
-                    <div class="form-group">
-                        <input type="submit" class="btn btn-primary" value="Register">
-                    </div>
-                </form>
+             <div class="toggle-panel toggle-right">
+                <h1>Welcome Back!</h1>
+                <p>Already have an account?</p>
+                <button class="btn login-btn">Login</button>
             </div>
         </div>
     </div>
-    
-    <script>
-        function showTab(tabName) {
-            // Hide all tab contents
-            const tabContents = document.getElementsByClassName('tab-content');
-            for (let i = 0; i < tabContents.length; i++) {
-                tabContents[i].classList.remove('active');
-            }
-            
-            // Remove active class from all tab buttons
-            const tabButtons = document.getElementsByClassName('tab-btn');
-            for (let i = 0; i < tabButtons.length; i++) {
-                tabButtons[i].classList.remove('active');
-            }
-            
-            // Show the selected tab content and mark its button as active
-            document.getElementById(tabName).classList.add('active');
-            event.currentTarget.classList.add('active');
-        }
-    </script>
+    <script src="js/script.js"></script>
 </body>
 </html>
